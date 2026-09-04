@@ -1,69 +1,92 @@
 import { Link } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-/**
- * Smooth scroll-reveal hook.
- * Attaches an IntersectionObserver to the container ref and adds
- * `revealed` class to child `.reveal` elements as they enter the viewport.
- */
-function useReveal() {
+/* ── Data ── */
+const agents = [
+  { name: 'Code Analysis', icon: '{ }', color: '#00d4ff', desc: 'Syntax quality, complexity metrics, code smells & maintainability scoring.' },
+  { name: 'Architecture', icon: '◇', color: '#a855f7', desc: 'Modularity analysis, coupling detection, SOLID compliance & structural integrity.' },
+  { name: 'Security', icon: '⬡', color: '#f43f5e', desc: 'Vulnerability scanning, injection risks, auth exposure & secret leak detection.' },
+  { name: 'Performance', icon: '▸', color: '#fbbf24', desc: 'Bottleneck identification, memory leaks, I/O & algorithmic efficiency analysis.' },
+  { name: 'Product/UX', icon: '◎', color: '#00ff88', desc: 'Usability audit, accessibility compliance, error handling & user flow review.' }
+]
+
+/* SVG network layout: 5 agents on a circle around a central orchestrator */
+const CX = 350, CY = 280, R = 190
+const agentNodes = agents.map((a, i) => {
+  const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 5
+  return {
+    ...a,
+    x: CX + R * Math.cos(angle),
+    y: CY + R * Math.sin(angle)
+  }
+})
+
+/* ── Hooks ── */
+
+/** Scroll progress for an element (0 = entering viewport, 1 = fully visible) */
+function useScrollProgress() {
   const ref = useRef(null)
+  const [progress, setProgress] = useState(0)
 
   useEffect(() => {
-    const node = ref.current
-    if (!node) return
+    const el = ref.current
+    if (!el) return
+    const onScroll = () => {
+      const rect = el.getBoundingClientRect()
+      const vh = window.innerHeight
+      const raw = (vh - rect.top) / (vh + rect.height)
+      setProgress(Math.max(0, Math.min(1, raw)))
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
-    const els = node.querySelectorAll('.reveal')
-    if (els.length === 0) return
+  return [ref, progress]
+}
 
+/** IntersectionObserver that adds phase classes at ratio thresholds */
+function usePhasedObserver(thresholds = [0.1, 0.25, 0.45, 0.65]) {
+  const ref = useRef(null)
+  const [phase, setPhase] = useState(0)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add('revealed')
-            observer.unobserve(entry.target)
+            const r = entry.intersectionRatio
+            if (r >= thresholds[3]) setPhase(4)
+            else if (r >= thresholds[2]) setPhase(3)
+            else if (r >= thresholds[1]) setPhase(2)
+            else if (r >= thresholds[0]) setPhase(1)
           }
         })
       },
-      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+      { threshold: thresholds }
     )
-
-    els.forEach((el) => observer.observe(el))
+    observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return ref
+  return [ref, phase]
 }
 
-const agents = [
-  { name: 'Code Analysis', icon: '{ }', color: '#00d4ff', desc: 'Syntax quality, complexity metrics, code smells & long-term maintainability scoring.' },
-  { name: 'Architecture', icon: '[ ]', color: '#a855f7', desc: 'Modularity analysis, coupling detection, SOLID compliance & structural integrity.' },
-  { name: 'Security', icon: '!', color: '#f43f5e', desc: 'Vulnerability scanning, injection risk detection, auth exposure & secret leaks.' },
-  { name: 'Performance', icon: '>', color: '#fbbf24', desc: 'Bottleneck identification, memory leak detection, I/O & algorithmic efficiency.' },
-  { name: 'Product/UX', icon: '*', color: '#00ff88', desc: 'Usability audit, accessibility compliance, error handling & user flow analysis.' }
-]
-
-const pipelineSteps = [
-  { label: 'Ingestion', icon: '↗', desc: 'Upload & parse codebase', color: '#00d4ff' },
-  { label: 'Specialist Agents', icon: '⬡', desc: '5 parallel AI analyses', color: '#a855f7' },
-  { label: 'Orchestrator', icon: '◈', desc: 'Consolidate & score', color: '#fbbf24' },
-  { label: 'Health Report', icon: '✓', desc: 'Unified actionable report', color: '#00ff88' }
-]
-
+/* ── Component ── */
 export default function LandingPage() {
-  const agentsRef = useReveal()
-  const pipelineRef = useReveal()
+  const [netRef, netPhase] = usePhasedObserver([0.08, 0.2, 0.38, 0.55])
+  const [heroRef, heroProgress] = useScrollProgress()
 
   return (
     <div className="landing-page">
       {/* ── Ambient background ── */}
       <div className="landing-grid-bg" />
-      <div className="hero-ambient-glow" />
 
-      {/* ── Top Nav (Intel-style 3-column) ── */}
+      {/* ── Top Nav ── */}
       <header className="top-nav landing-top-nav">
         <div className="top-nav-inner">
-          {/* Left: Logo */}
           <Link to="/" className="top-nav-logo">
             <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
               <circle cx="16" cy="16" r="14" stroke="#00d4ff" strokeWidth="2.5"/>
@@ -75,134 +98,199 @@ export default function LandingPage() {
             </svg>
             <span>ProtoLens AI</span>
           </Link>
-
-          {/* Center: Links */}
           <nav className="top-nav-links">
             <a href="#platform" className="top-nav-link">Platform</a>
             <a href="#agents" className="top-nav-link">Agents</a>
             <a href="#pipeline" className="top-nav-link">Architecture</a>
-            <a href="#docs" className="top-nav-link">Docs</a>
           </nav>
-
-          {/* Right: Utilities + Sign In */}
           <div className="top-nav-right">
-            <button className="top-nav-icon-btn" title="Search">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            </button>
             <Link to="/login" className="btn-nav-signin">Sign In</Link>
           </div>
         </div>
       </header>
 
-      {/* ── Hero Section ── */}
-      <section className="hero-section fade-in-up" id="platform">
-        <div className="hero-badge">
-          <span className="hero-badge-dot" />
-          Multi-Agent AI Analysis Engine — v1.0
-        </div>
-        <h1 className="hero-title">
-          Powering the future of<br />
-          <span className="gradient-text">software auditing</span>
-        </h1>
-        <p className="hero-subtitle">
-          Transform your codebase with multi-agent intelligence. Five specialist AI agents
-          audit your code in parallel — delivering a unified health score in under 30 seconds.
-        </p>
-        <div className="hero-ctas">
-          <Link to="/login" className="btn-glow btn-lg">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Run Audit
-          </Link>
-          <a href="#agents" className="btn-outline btn-lg">
-            Explore Agents
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </a>
-        </div>
-
-        <div className="hero-metrics">
-          <div className="hero-metric">
-            <div className="hero-metric-value">5</div>
-            <div className="hero-metric-label">Specialist Agents</div>
+      {/* ── Hero ── */}
+      <section className="lp-hero" id="platform" ref={heroRef}>
+        <div className="lp-hero-inner">
+          <div className="lp-hero-badge">
+            <span className="lp-hero-dot" />
+            Multi-Agent Analysis Engine
           </div>
-          <div className="hero-metric-divider" />
-          <div className="hero-metric">
-            <div className="hero-metric-value">100+</div>
-            <div className="hero-metric-label">Analysis Checks</div>
+          <h1 className="lp-hero-title">
+            Analyze software like an<br />
+            <span className="lp-gradient">entire engineering team.</span>
+          </h1>
+          <p className="lp-hero-sub">
+            Five specialist AI agents audit your codebase in parallel — code quality,
+            architecture, security, performance, and UX — delivering a unified health
+            score in under 30 seconds.
+          </p>
+          <div className="lp-hero-ctas">
+            <Link to="/register" className="btn-glow btn-lg">
+              Start Free Audit
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </Link>
+            <a href="#agents" className="btn-outline btn-lg">
+              See How It Works
+            </a>
           </div>
-          <div className="hero-metric-divider" />
-          <div className="hero-metric">
-            <div className="hero-metric-value">&lt;30s</div>
-            <div className="hero-metric-label">Avg. Audit Time</div>
-          </div>
-          <div className="hero-metric-divider" />
-          <div className="hero-metric">
-            <div className="hero-metric-value">A–F</div>
-            <div className="hero-metric-label">Health Grades</div>
+          <div className="lp-hero-stats">
+            <div className="lp-stat"><span className="lp-stat-val">5</span><span className="lp-stat-lbl">Specialist Agents</span></div>
+            <div className="lp-stat-sep" />
+            <div className="lp-stat"><span className="lp-stat-val">100+</span><span className="lp-stat-lbl">Analysis Checks</span></div>
+            <div className="lp-stat-sep" />
+            <div className="lp-stat"><span className="lp-stat-val">&lt;30s</span><span className="lp-stat-lbl">Audit Time</span></div>
+            <div className="lp-stat-sep" />
+            <div className="lp-stat"><span className="lp-stat-val">A–F</span><span className="lp-stat-lbl">Health Grades</span></div>
           </div>
         </div>
       </section>
 
-      {/* ── Feature Grid (5 Agent Cards) ── */}
-      <section className="landing-section" id="agents" ref={agentsRef}>
-        <div className="section-eyebrow">Core Pillars</div>
-        <h2 className="landing-section-title">Five Specialist Agents</h2>
-        <p className="landing-section-sub">
-          Each agent independently analyzes your codebase through a specialized lens, then delivers findings in a standardized, actionable schema.
-        </p>
-        <div className="feature-grid">
-          {agents.map((agent, i) => (
-            <div key={i} className="feature-card reveal" style={{ transitionDelay: `${i * 80}ms`, '--card-accent': agent.color }}>
-              <div className="feature-card-icon" style={{ color: agent.color }}>
-                <span>{agent.icon}</span>
-              </div>
-              <h4 className="feature-card-title">{agent.name}</h4>
-              <p className="feature-card-desc">{agent.desc}</p>
-              <div className="feature-card-line" style={{ background: agent.color }} />
+      {/* ── Agent Network Visualization ── */}
+      <section className="lp-network-section" id="agents" ref={netRef} data-phase={netPhase}>
+        <div className="lp-section-header">
+          <span className="lp-section-eyebrow">The Agent Network</span>
+          <h2 className="lp-section-title">Five Specialists. One Orchestrator.</h2>
+          <p className="lp-section-sub">
+            Each agent analyzes your codebase through a different lens. The orchestrator
+            consolidates findings into a single, actionable health report.
+          </p>
+        </div>
+
+        <div className="lp-network-canvas">
+          <svg viewBox="0 0 700 560" className="lp-network-svg" aria-label="Agent network visualization">
+            <defs>
+              {/* Glow filter */}
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="6" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+              <filter id="glow-sm" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+              {/* Data flow gradient */}
+              <linearGradient id="flow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="transparent" />
+                <stop offset="50%" stopColor="#00d4ff" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+            </defs>
+
+            {/* Phase 3: Connection lines (agent → orchestrator) */}
+            {agentNodes.map((a, i) => (
+              <line
+                key={`line-${i}`}
+                x1={a.x} y1={a.y} x2={CX} y2={CY}
+                stroke={a.color}
+                strokeWidth="1.5"
+                strokeOpacity={netPhase >= 3 ? 0.2 : 0}
+                className="lp-net-line"
+                style={{ transitionDelay: `${i * 120}ms` }}
+              />
+            ))}
+
+            {/* Phase 4: Data flow dots along lines */}
+            {netPhase >= 4 && agentNodes.map((a, i) => (
+              <circle
+                key={`flow-${i}`}
+                r="3"
+                fill={a.color}
+                filter="url(#glow-sm)"
+                className="lp-flow-dot"
+                style={{
+                  '--x1': `${a.x}`, '--y1': `${a.y}`,
+                  '--x2': `${CX}`, '--y2': `${CY}`,
+                  animationDelay: `${i * 300}ms`
+                }}
+              />
+            ))}
+
+            {/* Phase 2: Agent nodes */}
+            {agentNodes.map((a, i) => (
+              <g
+                key={`agent-${i}`}
+                className={`lp-agent-node ${netPhase >= 2 ? 'visible' : ''}`}
+                style={{ transitionDelay: `${i * 100}ms` }}
+              >
+                {/* Outer glow ring */}
+                <circle cx={a.x} cy={a.y} r="38" fill="none" stroke={a.color} strokeWidth="1" strokeOpacity="0.15" />
+                {/* Main circle */}
+                <circle cx={a.x} cy={a.y} r="32" fill="rgba(14,17,32,0.85)" stroke={a.color} strokeWidth="1.5" filter="url(#glow-sm)" />
+                {/* Icon */}
+                <text x={a.x} y={a.y + 1} textAnchor="middle" dominantBaseline="central" fill={a.color} fontSize="15" fontFamily="'Space Grotesk', sans-serif" fontWeight="700">{a.icon}</text>
+                {/* Label */}
+                <text x={a.x} y={a.y + 54} textAnchor="middle" fill="#94a3b8" fontSize="12" fontFamily="'Inter', sans-serif" fontWeight="500">{a.name}</text>
+                {/* Description (visible on larger screens) */}
+                <text x={a.x} y={a.y + 70} textAnchor="middle" fill="#64748b" fontSize="10" fontFamily="'Inter', sans-serif" className="lp-agent-desc-text">
+                  {a.desc.length > 40 ? a.desc.slice(0, 40) + '…' : a.desc}
+                </text>
+              </g>
+            ))}
+
+            {/* Phase 1: Orchestrator (center) */}
+            <g className={`lp-orch-node ${netPhase >= 1 ? 'visible' : ''}`}>
+              {/* Pulse rings */}
+              <circle cx={CX} cy={CY} r="55" fill="none" stroke="#fbbf24" strokeWidth="0.5" strokeOpacity="0.1" className="lp-orch-ring lp-orch-ring-1" />
+              <circle cx={CX} cy={CY} r="68" fill="none" stroke="#fbbf24" strokeWidth="0.5" strokeOpacity="0.06" className="lp-orch-ring lp-orch-ring-2" />
+              {/* Main circle */}
+              <circle cx={CX} cy={CY} r="44" fill="rgba(14,17,32,0.9)" stroke="#fbbf24" strokeWidth="2" filter="url(#glow)" />
+              {/* Inner detail */}
+              <circle cx={CX} cy={CY} r="18" fill="none" stroke="#fbbf24" strokeWidth="0.8" strokeOpacity="0.3" strokeDasharray="3 4" />
+              {/* Label */}
+              <text x={CX} y={CY - 5} textAnchor="middle" dominantBaseline="central" fill="#fbbf24" fontSize="11" fontFamily="'Space Grotesk', sans-serif" fontWeight="700" letterSpacing="1.5">ORCH</text>
+              <text x={CX} y={CY + 10} textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily="'Inter', sans-serif" fontWeight="400">Orchestrator</text>
+              {/* Bottom label */}
+              <text x={CX} y={CY + 68} textAnchor="middle" fill="#64748b" fontSize="11" fontFamily="'Inter', sans-serif">Consolidates & Scores</text>
+            </g>
+          </svg>
+        </div>
+
+        {/* Agent detail cards below the visualization */}
+        <div className="lp-agent-cards">
+          {agents.map((a, i) => (
+            <div key={i} className={`lp-agent-card ${netPhase >= 2 ? 'visible' : ''}`} style={{ transitionDelay: `${i * 80 + 200}ms`, '--card-color': a.color }}>
+              <div className="lp-agent-card-icon" style={{ color: a.color }}>{a.icon}</div>
+              <h4>{a.name}</h4>
+              <p>{a.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── Pipeline Section ── */}
-      <section className="landing-section" id="pipeline" ref={pipelineRef}>
-        <div className="section-eyebrow">How It Works</div>
-        <h2 className="landing-section-title">The Analysis Pipeline</h2>
-        <p className="landing-section-sub">
-          From upload to actionable report — a streamlined, autonomous workflow powered by AI.
-        </p>
-        <div className="pipeline-flow">
-          {pipelineSteps.map((step, i) => (
-            <div key={i} className="pipeline-step-wrapper">
-              <div className="pipeline-step reveal" style={{ transitionDelay: `${i * 100}ms` }}>
-                <div className="pipeline-step-icon" style={{ color: step.color }}>
-                  <span>{step.icon}</span>
-                </div>
-                <h4>{step.label}</h4>
-                <p>{step.desc}</p>
-              </div>
-              {i < pipelineSteps.length - 1 && (
-                <div className="pipeline-connector">
-                  <svg width="32" height="12" viewBox="0 0 32 12" fill="none">
-                    <line x1="0" y1="6" x2="24" y2="6" stroke="rgba(0,212,255,0.25)" strokeWidth="2" strokeDasharray="4 3"/>
-                    <polyline points="22,2 28,6 22,10" fill="none" stroke="rgba(0,212,255,0.3)" strokeWidth="2"/>
-                  </svg>
-                </div>
-              )}
+      {/* ── Pipeline ── */}
+      <section className="lp-pipeline-section" id="pipeline">
+        <div className="lp-section-header">
+          <span className="lp-section-eyebrow">How It Works</span>
+          <h2 className="lp-section-title">From Code to Clarity</h2>
+          <p className="lp-section-sub">Upload your project. Get a comprehensive health report in seconds.</p>
+        </div>
+        <div className="lp-pipeline-steps">
+          {[
+            { step: '01', label: 'Upload', desc: 'Drop your folder or .zip archive', color: '#00d4ff' },
+            { step: '02', label: 'Parse', desc: 'File structure & source indexed', color: '#38bdf8' },
+            { step: '03', label: 'Analyze', desc: '5 agents run 100+ checks in parallel', color: '#a855f7' },
+            { step: '04', label: 'Consolidate', desc: 'Orchestrator merges & prioritizes', color: '#fbbf24' },
+            { step: '05', label: 'Report', desc: 'Unified A–F health grade delivered', color: '#00ff88' }
+          ].map((s, i) => (
+            <div key={i} className="lp-pipe-step">
+              <div className="lp-pipe-num" style={{ color: s.color }}>{s.step}</div>
+              <h4>{s.label}</h4>
+              <p>{s.desc}</p>
+              {i < 4 && <div className="lp-pipe-connector" />}
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── Docs Section (placeholder) ── */}
-      <section className="landing-section landing-section-compact" id="docs">
-        <div className="section-eyebrow">Documentation</div>
-        <h2 className="landing-section-title">Get Started in Minutes</h2>
-        <p className="landing-section-sub">
-          Upload your project folder or .zip archive, select your tech stack, and let the agents do the rest. No configuration required.
-        </p>
-        <div className="hero-ctas" style={{ marginTop: '24px' }}>
-          <Link to="/login" className="btn-glow btn-lg">
-            Get Started Free
+      {/* ── Final CTA ── */}
+      <section className="lp-cta-section">
+        <h2>Ready to see your code clearly?</h2>
+        <p>Upload your project and get a multi-agent health audit in under 30 seconds. No configuration required.</p>
+        <div className="lp-hero-ctas" style={{ marginTop: '24px' }}>
+          <Link to="/register" className="btn-glow btn-lg">
+            Start Free Audit
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </Link>
         </div>
       </section>
@@ -211,7 +299,7 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <div className="landing-footer-inner">
           <div className="landing-footer-brand">
-            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+            <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
               <circle cx="16" cy="16" r="14" stroke="#00d4ff" strokeWidth="2"/>
               <circle cx="16" cy="16" r="5" fill="#00d4ff" opacity="0.6"/>
             </svg>

@@ -36,8 +36,12 @@ app.get('*', (req, res) => {
 // Initialize database and start server
 initDatabase();
 
-app.listen(PORT, () => {
-  console.log(`ProtoLens AI server running on port ${PORT}`);
-});
+// Only call listen() in local / non-Vercel environments.
+// Vercel's serverless runtime invokes the exported handler directly.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`ProtoLens AI server running on port ${PORT}`);
+  });
+}
 
 module.exports = app;
