@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../api/client'
+import api, { getApiErrorMessage } from '../api/client'
 
 export default function NewProjectPage() {
   const navigate = useNavigate()
@@ -122,7 +122,7 @@ export default function NewProjectPage() {
         navigate(`/app/projects/${projectId}`)
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create project')
+      setError(getApiErrorMessage(err, 'Failed to create project'))
       setLoading(false)
     }
   }

@@ -21,4 +21,37 @@ api.interceptors.response.use(
   }
 )
 
+/**
+ * Extract a render-safe STRING from an API/network error.
+ *
+ * React cannot render plain objects (Minified React error #31 — the cause of
+ * the post-login black screen on Vercel: platform 404 bodies look like
+ * { error: { code, message } }, and the old `err.response?.data?.error ||
+ * fallback` pattern put that nested object straight into JSX).
+ *
+ * Handles, in order:
+ *  - plain string bodies (skipping HTML error pages)
+ *  - { error: 'string' }            — ProtoLens API shape
+ *  - { error: { code, message } }   — Vercel platform error shape
+ *  - { message: 'string' }          — flat { code, message } bodies
+ *  - axios/network messages (e.g. 'Network Error')
+ * Anything else falls back to the provided default.
+ */
+export function getApiErrorMessage(err, fallback = 'Something went wrong') {
+  const asText = v => {
+    if (typeof v !== 'string') return null
+    const t = v.trim()
+    return t && !t.startsWith('<') ? t : null
+  }
+  const data = err?.response?.data
+  return (
+    asText(data) ||
+    asText(data?.error) ||
+    asText(data?.error?.message) ||
+    asText(data?.message) ||
+    asText(err?.message) ||
+    fallback
+  )
+}
+
 export default api

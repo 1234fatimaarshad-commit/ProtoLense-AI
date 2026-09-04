@@ -17,8 +17,8 @@ export default function ProjectDetailPage() {
   const loadData = () => {
     api.get(`/projects/${id}`)
       .then(res => {
-        setProject(res.data.project)
-        setAudits(res.data.audits)
+        setProject(res.data.project || null)
+        setAudits(res.data.audits || [])
       })
       .catch(err => {
         if (err.response?.status === 404) navigate('/app/dashboard')

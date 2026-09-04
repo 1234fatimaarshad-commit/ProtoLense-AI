@@ -24,6 +24,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'ProtoLens AI', version: '1.0.0' });
 });
 
+// JSON 404 for any unmatched /api route.
+// Runs only after the route mounts above have declined to respond, so it
+// never shadows real endpoints. Without this, an unmatched GET /api/* falls
+// into the SPA catch-all below (which skips /api paths without responding)
+// and the request hangs — and unmatched POSTs return Express's HTML 404,
+// which the frontend can't render as an error message.
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.path}` });
+});
+
 // Serve static frontend in production
 const clientBuild = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuild));
